@@ -68,6 +68,22 @@ public class RachioCommands
         _logger.LogInformation("Device events saved to '{OutFile}'.", file.FullName);
     }
 
+    [Command(Description = "Save the events for a device to a file.")]
+    public async Task SaveDeviceEventsSql(
+        [Option(Description = "Connection string to database.")]
+        string connectionString,
+        [Option(Description = "Table name to save. Defaults to 'RachioDeviceEvent'.")]
+        string? tableName,
+        [Option(Description = "Name of the device to retrieve events for. If null, all devices are used.")]
+        string? deviceName)
+    {
+        var events = await _rachioApi.GetDeviceEvents(deviceName, CancellationToken).ToListAsync();
+
+        await SqlHelper.SaveEvents(events, connectionString, tableName, CancellationToken);
+
+        _logger.LogInformation("Device events saved to database.");
+    }
+
     [Command(Description = "Activate or hibernate a Rachio device.")]
     public async Task SetDeviceHibernate(
         [Option(Description = "Device to activate/hibernate.")]
