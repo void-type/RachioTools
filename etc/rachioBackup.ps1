@@ -1,3 +1,4 @@
+# This script is obsolete, you should run the RachioTools.ConsoleApp instead.
 # Run this process at the end of a season.
 
 # https://rachio.readme.io/reference/getting-started
@@ -5,9 +6,34 @@
 
 [CmdletBinding()]
 param (
-  [Parameter(Mandatory = $true)]
+  [Parameter(Mandatory = $false)]
   [string]$ApiKey
 )
+
+# If no ApiKey is provided, try to read it from appsettings.Production.json
+if ([string]::IsNullOrEmpty($ApiKey)) {
+  $appsettingsPath = Join-Path $PSScriptRoot '..\src\RachioTools.ConsoleApp\appsettings.Production.json'
+
+  if (Test-Path $appsettingsPath) {
+    try {
+      $appsettings = Get-Content $appsettingsPath | ConvertFrom-Json
+      $ApiKey = $appsettings.RachioApi.ApiKey
+
+      if ([string]::IsNullOrEmpty($ApiKey)) {
+        Write-Error 'ApiKey not found in appsettings.Production.json'
+        return
+      }
+
+      Write-Host 'Using ApiKey from appsettings.Production.json'
+    } catch {
+      Write-Error "Failed to read ApiKey from appsettings.Production.json: $($_.Exception.Message)"
+      return
+    }
+  } else {
+    Write-Error "No ApiKey provided and appsettings.Production.json not found at: $appsettingsPath"
+    return
+  }
+}
 
 $headers = @{
   'Authorization' = "Bearer $ApiKey"

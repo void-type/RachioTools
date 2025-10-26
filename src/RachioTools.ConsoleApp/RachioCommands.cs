@@ -1,5 +1,6 @@
 ﻿using Cocona;
 using Cocona.Application;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RachioTools.Api;
@@ -13,13 +14,15 @@ public class RachioCommands
     private readonly RachioApiService _rachioApi;
     private readonly ILogger<RachioCommands> _logger;
     private readonly ICoconaAppContextAccessor _contextAccessor;
+    private readonly IConfiguration _configuration;
 
     public RachioCommands(RachioApiService rachioApi, ILogger<RachioCommands> logger,
-        ICoconaAppContextAccessor contextAccessor)
+        ICoconaAppContextAccessor contextAccessor, IConfiguration configuration)
     {
         _rachioApi = rachioApi;
         _logger = logger;
         _contextAccessor = contextAccessor;
+        _configuration = configuration;
     }
 
     public CancellationToken CancellationToken => _contextAccessor?.Current?.CancellationToken ?? CancellationToken.None;
@@ -68,29 +71,36 @@ public class RachioCommands
         _logger.LogInformation("Device events saved to '{OutFile}'.", file.FullName);
     }
 
-    [Command(Description = "Save the events for a device to a file.")]
+    [Command(Description = "Save the events for a device to a SQL database.")]
     public async Task SaveDeviceEventsSql(
-        [Option(Description = "Connection string to database.")]
-        string connectionString,
-        [Option(Description = "Table name to save. Defaults to 'RachioDeviceEvent'.")]
-        string? tableName,
         [Option(Description = "Name of the device to retrieve events for. If null, all devices are used.")]
         string? deviceName)
     {
+        var connectionString = _configuration.GetConnectionString("DefaultConnection")
+            ?? throw new InvalidOperationException("DefaultConnection connection string not found in configuration.");
+
         var events = await _rachioApi.GetDeviceEvents(deviceName, CancellationToken).ToListAsync();
 
-        await SqlHelper.SaveEvents(events, connectionString, tableName, CancellationToken);
+        await SqlHelper.SaveEvents(events, connectionString, CancellationToken);
 
         _logger.LogInformation("Device events saved to database.");
     }
 
     [Command(Description = "Activate or hibernate a Rachio device.")]
     public async Task SetDeviceHibernate(
-        [Option(Description = "Device to activate/hibernate.")]
-        string deviceName,
         [Option(Description = "Include or true to hibernate. Exclude or false to activate.")]
-        bool hibernate)
+        bool hibernate,
+        [FromService] IOptions<RachioWinterizeSettings> winterizeOptions)
     {
+        var winterizeSettings = winterizeOptions.Value;
+        var deviceName = winterizeSettings.DeviceName;
+
+        if (string.IsNullOrEmpty(deviceName))
+        {
+            _logger.LogError("Device name not found in winterize configuration.");
+            return;
+        }
+
         var person = await _rachioApi.GetPerson(CancellationToken);
 
         if (person is null)
