@@ -15,7 +15,6 @@ Setup appsettings.Production.json with your API Key, device name, zone timings, 
 Run the winterize process and hibernate the device.
 
 `dotnet run -- winterize`
-`dotnet run -- set-device-hibernate --hibernate true`
 
 Create tables if they don't exist, then save device events that are missing.
 
